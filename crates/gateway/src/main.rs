@@ -8,8 +8,10 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::collections::HashMap;
+use std::time::Duration;
 use uuid::Uuid;
-use engine::EngineError;
+use engine::{EngineError, events::SharedEventBus};
+use common::SystemEvent;
 use auth::{TokenManager, AuthHasher};
 use sqlx::{PgPool, Row, Column, TypeInfo};
 use database::{QueryEngine, DynamicQuery};
@@ -23,6 +25,7 @@ pub struct AppState {
     pub token_manager: Arc<TokenManager>,
     pub realtime_manager: Arc<RealtimeManager>,
     pub storage: Arc<dyn ObjectStorage>,
+    pub event_bus: SharedEventBus,
 }
 
 #[derive(Deserialize)]
@@ -221,7 +224,7 @@ async fn storage_upload(
         let filename = field.file_name().unwrap_or("upload").to_string();
         let data = field.bytes().await.map_err(|e| EngineError::Internal(anyhow::anyhow!("Failed to read bytes: {}", e)))?;
         
-        state.storage.upload(&bucket, &filename, data.to_vec(), claims.pid).await?;
+        state.storage.upload(&claims.pid.to_string(), &bucket, &filename, data.to_vec()).await?;
     }
 
     Ok(StatusCode::OK)
@@ -243,7 +246,7 @@ async fn storage_sign(
 
     let claims = state.token_manager.verify_token(auth_header, false)?;
 
-    let url = state.storage.sign_url(&bucket, path, claims.pid).await?;
+    let url = state.storage.sign_url(&claims.pid.to_string(), &bucket, path, Duration::from_secs(3600)).await?;
 
     Ok(Json(serde_json::json!({ "url": url })))
 }
@@ -273,6 +276,18 @@ async fn register(
         }
         EngineError::Database(e)
     })?;
+
+    // Publish 'user.registered' event
+    let event = SystemEvent::new(
+        user.project_id,
+        "user.registered".to_string(),
+        serde_json::json!({
+            "user_id": user.id,
+            "email": user.email,
+        }),
+    );
+
+    state.event_bus.publish_event(event).await?;
 
     let access_token = state.token_manager.generate_access_token(user.id, user.project_id)?;
     let refresh_token = state.token_manager.generate_refresh_token(user.id, user.project_id)?;
@@ -324,7 +339,6 @@ async fn refresh(
         access_token,
         refresh_token,
         user_id: claims.sub,
-        refresh_token: claims.sub, // Error here, but I'll fix it in the next turn if not a critical compile error
     })))
 }
 
@@ -415,13 +429,20 @@ async fn main() {
             .expect("Failed to initialize Realtime Manager")
     );
 
-    let storage_manager = Arc::new(S3Storage::new("s3.amazonaws.com", "us-east-1").await);
+    let event_bus = Arc::new(
+        engine::events::EventBus::new("nats://localhost:4222")
+            .await
+            .expect("Failed to initialize Event Bus")
+    );
+
+    let storage_manager = Arc::new(S3Storage::new("universal-backend-storage".to_string()).await);
 
     let state = Arc::new(AppState {
         db: pool,
         token_manager,
         realtime_manager,
         storage: storage_manager,
+        event_bus,
     });
 
     let app = Router::new()

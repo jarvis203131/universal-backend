@@ -41,6 +41,9 @@ pub enum EngineError {
     #[error("Storage engine error: {0}")]
     Storage(String),
 
+    #[error("Event bus error: {0}")]
+    EventBus(String),
+
     #[error("Not found: {0}")]
     NotFound(String),
 }
@@ -65,6 +68,7 @@ impl IntoResponse for EngineError {
             }
             EngineError::Realtime(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             EngineError::Storage(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            EngineError::EventBus(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             EngineError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
         };
 
