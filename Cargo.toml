@@ -6,6 +6,7 @@ members = [
     "crates/auth",
     "crates/realtime",
     "crates/gateway",
+    "crates/functions",
 ]
 resolver = "2"
 
@@ -26,3 +27,4 @@ async-nats = "0.33"
 futures-util = "0.3"
 aws-config = "1.1"
 aws-sdk-s3 = "1.17"
+boa_engine = "0.21"

@@ -44,6 +44,9 @@ pub enum EngineError {
     #[error("Event bus error: {0}")]
     EventBus(String),
 
+    #[error("Function runtime error: {0}")]
+    Function(String),
+
     #[error("Not found: {0}")]
     NotFound(String),
 }
@@ -69,6 +72,7 @@ impl IntoResponse for EngineError {
             EngineError::Realtime(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             EngineError::Storage(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             EngineError::EventBus(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            EngineError::Function(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             EngineError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
         };
 
