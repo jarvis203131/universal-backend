@@ -1,16 +1,18 @@
 use axum::{
-    extract::State,
+    extract::{Path, Query as AxumQuery, State},
     http::{StatusCode, HeaderMap},
     response::IntoResponse,
-    routing::{get, post},
+    routing::{get, post, patch, delete},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::collections::HashMap;
 use uuid::Uuid;
 use engine::EngineError;
 use auth::{TokenManager, AuthHasher};
-use sqlx::PgPool;
+use sqlx::{PgPool, Row, Column, TypeInfo};
+use database::{QueryEngine, DynamicQuery};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -51,6 +53,150 @@ pub struct UserMeResponse {
     pub project_id: Uuid,
     pub email: String,
 }
+
+// --- Dynamic CRUD Handlers ---
+
+async fn generic_list(
+    State(state): State<Arc<AppState>>,
+    Path(table): Path<String>,
+    headers: HeaderMap,
+    AxumQuery(params): AxumQuery<HashMap<String, String>>,
+) -> Result<impl IntoResponse, EngineError> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+
+    let dq = DynamicQuery {
+        filters: params.clone(),
+        sort: params.get("sort").cloned(),
+        limit: params.get("limit").and_then(|l| l.parse().ok()),
+        offset: params.get("offset").and_then(|o| o.parse().ok()),
+    };
+
+    let (sql, values) = QueryEngine::build_select(&table, &dq, claims.pid);
+    
+    let mut query = sqlx::query(&sql);
+    for val in values {
+        // Convert sea_query::Value to String for generic binding
+        query = query.bind(val.to_string());
+    }
+
+    let rows = query.fetch_all(&state.db).await?;
+    
+    let mut results = Vec::new();
+    for row in rows {
+        let mut map = serde_json::Map::new();
+        for col in row.columns() {
+            let name = col.name();
+            let val: serde_json::Value = match col.type_info().name() {
+                "TEXT" | "VARCHAR" => {
+                    let s: String = row.try_get(name).unwrap_or_default();
+                    serde_json::Value::String(s)
+                }
+                "INT4" | "INT8" => {
+                    let i: i64 = row.try_get(name).unwrap_or(0);
+                    serde_json::Value::Number(i.into())
+                }
+                "BOOL" => {
+                    let b: bool = row.try_get(name).unwrap_or(false);
+                    serde_json::Value::Bool(b)
+                }
+                _ => serde_json::Value::Null,
+            };
+            map.insert(name.to_string(), val);
+        }
+        results.push(serde_json::Value::Object(map));
+    }
+
+    Ok(Json(results))
+}
+
+async fn generic_create(
+    State(state): State<Arc<AppState>>,
+    Path(table): Path<String>,
+    headers: HeaderMap,
+    Json(payload): Json<HashMap<String, serde_json::Value>>,
+) -> Result<impl IntoResponse, EngineError> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+
+    let (sql, values) = QueryEngine::build_insert(&table, payload, claims.pid);
+    
+    let mut query = sqlx::query(&sql);
+    for val in values {
+        query = query.bind(val.to_string());
+    }
+
+    query.execute(&state.db).await?;
+
+    Ok((StatusCode::CREATED, Json(serde_json::json!({"status": "created"}))))
+}
+
+async fn generic_update(
+    State(state): State<Arc<AppState>>,
+    Path((table, id_str)): Path<(String, String)>,
+    headers: HeaderMap,
+    Json(payload): Json<HashMap<String, serde_json::Value>>,
+) -> Result<impl IntoResponse, EngineError> {
+    let id = Uuid::parse_str(&id_str).map_err(|_| EngineError::InvalidInput("Invalid UUID".to_string()))?;
+    
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+
+    let (sql, values) = QueryEngine::build_update(&table, id, payload, claims.pid);
+    
+    let mut query = sqlx::query(&sql);
+    for val in values {
+        query = query.bind(val.to_string());
+    }
+
+    query.execute(&state.db).await?;
+
+    Ok(Json(serde_json::json!({"status": "updated"})))
+}
+
+async fn generic_delete(
+    State(state): State<Arc<AppState>>,
+    Path((table, id_str)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, EngineError> {
+    let id = Uuid::parse_str(&id_str).map_err(|_| EngineError::InvalidInput("Invalid UUID".to_string()))?;
+    
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+
+    let (sql, values) = QueryEngine::build_delete(&table, id, claims.pid);
+    
+    let mut query = sqlx::query(&sql);
+    for val in values {
+        query = query.bind(val.to_string());
+    }
+
+    query.execute(&state.db).await?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Auth Handlers ---
 
 async fn register(
     State(state): State<Arc<AppState>>,
@@ -171,8 +317,8 @@ struct UserRecord {
 #[derive(sqlx::FromRow)]
 struct UserLoginRecord {
     id: Uuid,
-    password_hash: String,
     project_id: Uuid,
+    password_hash: String,
 }
 
 #[tokio::main]
@@ -198,6 +344,9 @@ async fn main() {
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
         .route("/auth/me", get(me))
+        // Dynamic CRUD Routes
+        .route("/api/v1/:table", get(generic_list).post(generic_create))
+        .route("/api/v1/:table/:id", patch(generic_update).delete(generic_delete))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();

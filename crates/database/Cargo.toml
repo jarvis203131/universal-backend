@@ -12,4 +12,5 @@ thiserror = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+sea-query = { workspace = true }
 engine = { path = "../engine" }

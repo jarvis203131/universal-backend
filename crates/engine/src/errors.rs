@@ -29,6 +29,9 @@ pub enum EngineError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
+
     #[error("Internal server error")]
     Internal(#[from] anyhow::Error),
 
@@ -49,6 +52,7 @@ impl IntoResponse for EngineError {
             EngineError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid authentication token".to_string()),
             EngineError::Authentication(msg) => (StatusCode::UNAUTHORIZED, msg),
             EngineError::Validation(msg) => (StatusCode::BAD_REQUEST, msg),
+            EngineError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg),
             EngineError::Internal(ref e) => {
                 tracing::error!("Internal error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "An internal server error occurred".to_string())
