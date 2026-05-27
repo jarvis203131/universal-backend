@@ -23,6 +23,7 @@ The Universal Backend is a high-performance, production-ready platform designed 
 - **Realtime Engine:** An ultra-low latency WebSocket gateway powered by NATS JetStream for live event streaming.
 - **Storage Engine:** An S3-compatible object storage abstraction with strict project-based partitioning.
 - **Event System:** A centralized, asynchronous event bus for internal system-wide communication.
+- **Function Engine:** A sandboxed, serverless runtime for executing tenant-specific logic triggered by events.
 - **Tenant Manager:** Dynamic provisioning and isolation of tenant data.
 - **API Gateway:** Unified entry point for web, mobile, and third-party integrations.
 
@@ -87,6 +88,7 @@ The platform enforces strict tenant isolation at the infrastructure level:
 - **Realtime Isolation:** NATS subjects are formatted as `projects.<project_id>.channels.<channel>`, ensuring clients can only stream data belonging to their own project.
 - **Storage Isolation:** All objects are stored with the prefix `projects/<project_id>/<bucket>/<path>`, preventing cross-tenant access.
 - **Event Isolation:** Internal events are routed via `projects.<project_id>.events.<type>`, ensuring strict multi-tenant event boundaries.
+- **Runtime Isolation**: Serverless functions are executed in fresh, isolated Rhai contexts with strict execution timeouts.
 
 ## 🛠️ Technical Stack
 | Component | Technology |
@@ -97,6 +99,7 @@ The platform enforces strict tenant isolation at the infrastructure level:
 | **Query Builder** | Sea-Query |
 | **Realtime/Events** | NATS JetStream |
 | **Storage** | AWS S3 SDK / MinIO |
+| **Serverless Runtime** | Rhai |
 | **Runtime** | Docker |
 | **Orchestration** | Docker Compose |
 
