@@ -13,11 +13,13 @@ use engine::EngineError;
 use auth::{TokenManager, AuthHasher};
 use sqlx::{PgPool, Row, Column, TypeInfo};
 use database::{QueryEngine, DynamicQuery};
+use realtime::RealtimeManager;
 
 #[derive(Clone)]
 pub struct AppState {
     pub db: PgPool,
     pub token_manager: Arc<TokenManager>,
+    pub realtime_manager: Arc<RealtimeManager>,
 }
 
 #[derive(Deserialize)]
@@ -307,6 +309,29 @@ async fn health_check() -> &'static str {
     "OK"
 }
 
+async fn realtime_handler(
+    ws: axum::extract::WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, EngineError> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+    
+    Ok(ws.on_upgrade(move |socket| {
+        let state = state.clone();
+        async move {
+            if let Err(e) = state.realtime_manager.clone().handle_session(socket, claims.pid).await {
+                tracing::error!("Realtime session error: {:?}", e);
+            }
+        }
+    }))
+}
+
 #[derive(sqlx::FromRow)]
 struct UserRecord {
     id: Uuid,
@@ -333,13 +358,21 @@ async fn main() {
         "refresh_secret_key_456".to_string(),
     ));
 
+    let realtime_manager = Arc::new(
+        RealtimeManager::new("nats://localhost:4222")
+            .await
+            .expect("Failed to initialize Realtime Manager")
+    );
+
     let state = Arc::new(AppState {
         db: pool,
         token_manager,
+        realtime_manager,
     });
 
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/realtime", get(realtime_handler))
         .route("/auth/register", post(register))
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))

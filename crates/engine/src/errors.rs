@@ -35,6 +35,9 @@ pub enum EngineError {
     #[error("Internal server error")]
     Internal(#[from] anyhow::Error),
 
+    #[error("Realtime engine error: {0}")]
+    Realtime(String),
+
     #[error("Not found: {0}")]
     NotFound(String),
 }
@@ -57,6 +60,7 @@ impl IntoResponse for EngineError {
                 tracing::error!("Internal error: {:?}", e);
                 (StatusCode::INTERNAL_SERVER_ERROR, "An internal server error occurred".to_string())
             }
+            EngineError::Realtime(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
             EngineError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
         };
 

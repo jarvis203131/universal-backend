@@ -13,3 +13,5 @@ tracing = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 engine = { path = "../engine" }
+async-nats = { workspace = true }
+futures-util = { workspace = true }
