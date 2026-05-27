@@ -20,6 +20,7 @@ The Universal Backend is a high-performance, production-ready platform designed 
 ### 2. Key Modules
 - **Auth System:** User registration, secure login, and granular permission management.
 - **Dynamic Database Engine:** A metadata-driven query layer that exposes generic CRUD endpoints for any table at runtime.
+- **Realtime Engine:** An ultra-low latency WebSocket gateway powered by NATS JetStream for live event streaming.
 - **Tenant Manager:** Dynamic provisioning and isolation of tenant data.
 - **API Gateway:** Unified entry point for web, mobile, and third-party integrations.
 
@@ -43,11 +44,11 @@ cd universal-backend
 docker-compose up -d
 ```
 
-## 🔌 API Reference (Dynamic CRUD)
+## 🔌 API Reference
 
-The platform provides a generic API for data access. All requests must include a valid JWT in the `Authorization` header.
+All requests must include a valid JWT in the `Authorization` header.
 
-### Endpoints
+### 1. Dynamic CRUD (REST)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/v1/:table` | List records with optional filters, sorting, and pagination |
@@ -55,14 +56,27 @@ The platform provides a generic API for data access. All requests must include a
 | `PATCH` | `/api/v1/:table/:id` | Update an existing record |
 | `DELETE` | `/api/v1/:table/:id` | Remove a record |
 
-### Query Parameters
-- **Filters:** Use `column=op.value` (e.g., `?age=gte.21`). Supported operators: `eq`, `neq`, `gte`, `lte`, `gt`, `lt`.
+**Query Parameters:**
+- **Filters:** Use `column=op.value` (e.g., `?age=gte.21`). Operators: `eq`, `neq`, `gte`, `lte`, `gt`, `lt`.
 - **Sorting:** Use `?sort=column.direction` (e.g., `?sort=created_at.desc`).
 - **Pagination:** Use `?limit=X&offset=Y`.
 
-### 🛡️ Security: Row-Level Security (RLS)
-The engine enforces absolute tenant isolation. The `project_id` is extracted from the JWT and injected into every query:
-`SELECT * FROM table WHERE project_id = {jwt.project_id} AND {filters}`
+### 2. Realtime Engine (WebSockets)
+**Endpoint:** `GET /realtime`
+
+**Client Protocol:**
+Send JSON frames to manage subscriptions:
+```json
+{
+  "action": "subscribe",
+  "channel": "chats:room_1"
+}
+```
+
+## 🛡️ Security: Absolute Isolation
+The platform enforces strict tenant isolation at the infrastructure level:
+- **Database RLS:** Every query is unconditionally injected with `WHERE project_id = {jwt.project_id}`.
+- **Realtime Isolation:** NATS subjects are formatted as `projects.<project_id>.channels.<channel>`, ensuring clients can only stream data belonging to their own project.
 
 ## 🛠️ Technical Stack
 | Component | Technology |
@@ -71,6 +85,7 @@ The engine enforces absolute tenant isolation. The `project_id` is extracted fro
 | **Database** | PostgreSQL |
 | **Auth** | JWT / RBAC |
 | **Query Builder** | Sea-Query |
+| **Realtime** | NATS JetStream / WebSockets |
 | **Runtime** | Docker |
 | **Orchestration** | Docker Compose |
 
