@@ -1,133 +1,112 @@
 # Universal Backend Platform 🦾
 
-**An Elite, Multi-Tenant, Self-Hostable Backend Engine.**
+**The World's Finest Self-Hostable, Multi-Tenant BaaS Engine.**
 
-The Universal Backend is a high-performance, production-ready platform designed to be a self-hostable alternative to BaaS (Backend-as-a-Service) providers like Supabase and Firebase. It is engineered for scalability, security, and absolute portability.
+The Universal Backend is an elite, high-performance platform engineered to replace proprietary BaaS providers like Supabase and Firebase. It provides a production-ready infrastructure for web, mobile, and gaming applications, with an unwavering commitment to absolute tenant isolation and execution speed.
 
-## 🎯 Core Objectives
-- **Multi-Tenancy:** Native support for isolated tenant environments.
-- **High Performance:** Built with Rust for memory safety and execution speed.
-- **Zero-Config Deployment:** Fully containerized for one-command orchestration.
-- **Developer First:** Simplified API access and robust RBAC.
+---
+
+## 🎯 Core Philosophy
+- **Absolute Isolation:** Multi-tenancy is not a feature; it is the foundation. Every byte of data is guarded by `project_id` enforcement.
+- **Elite Engineering:** Built exclusively in Rust for memory safety, zero-cost abstractions, and unmatched concurrency.
+- **Developer Autonomy:** Zero-config deployment via Docker, enabling full ownership of the data and infrastructure.
+- **Hyper-Scalability:** Powered by NATS JetStream for realtime events and PostgreSQL for transactional integrity.
+
+---
 
 ## 🏗️ Architectural Blueprint
 
-### 1. Core Engine
-- **Language:** Rust
-- **Database:** PostgreSQL (Multi-tenant schema isolation)
-- **Authentication:** JWT-based stateless auth with Role-Based Access Control (RBAC).
+### 1. The Request Lifecycle
+Every request entering the system follows a strict security pipeline:
+`Client` $\rightarrow$ `API Gateway` $\rightarrow$ `JWT Verification (Auth Crate)` $\rightarrow$ `Tenant Context Extraction (project_id)` $\rightarrow$ `Module Execution (DB/Storage/Realtime/Gaming)` $\rightarrow$ `Isolated Data Access` $\rightarrow$ `Response`.
 
-### 2. Key Modules
-- **Auth System:** User registration, secure login, and granular permission management.
-- **Dynamic Database Engine:** A metadata-driven query layer that exposes generic CRUD endpoints for any table at runtime.
-- **Realtime Engine:** An ultra-low latency WebSocket gateway powered by NATS JetStream for live event streaming.
-- **Storage Engine:** An S3-compatible object storage abstraction with strict project-based partitioning.
-- **Event System:** A centralized, asynchronous event bus for internal system-wide communication.
-- **Function Engine:** A sandboxed, serverless runtime for executing tenant-specific logic triggered by events.
-- **Unified SDK:** A type-safe JavaScript/TypeScript client library encapsulating Auth, DB, Realtime, and Storage pipelines.
-- **Tenant Manager:** Dynamic provisioning and isolation of tenant data.
-- **API Gateway:** Unified entry point for web, mobile, and third-party integrations.
+### 2. The 9 Pillars of the Platform
+| Phase | Module | Core Responsibility | Key Technology |
+| :--- | :--- | :--- | :--- |
+| **P1** | **Auth System** | RBAC, JWT issuance, and secure identity management. | Argon2 / JWT |
+| **P2** | **Database Engine** | Dynamic, metadata-driven CRUD with forced RLS. | Sea-Query / Postgres |
+| **P3** | **Realtime Engine** | Ultra-low latency WebSocket streaming. | NATS JetStream |
+| **P4** | **Storage Engine** | S3-compatible object storage with logical partitioning. | AWS SDK / MinIO |
+| **P5** | **Event System** | Asynchronous, tenant-isolated system-wide event bus. | NATS JetStream |
+| **P6** | **Function Engine** | Sandboxed, serverless Rhai runtimes for custom logic. | Rhai / Tokio |
+| **P7** | **Dashboard Studio** | Multi-tenant administrative UI for system orchestration. | Next.js / Tailwind |
+| **P8** | **Unified SDK** | Type-safe TypeScript bridge for all platform modules. | TypeScript / Tsup |
+| **P9** | **Game Systems** | Low-latency matchmaking and transactional cloud saves. | Redis / Postgres |
 
-### 3. Infrastructure
-- **Containerization:** Docker & Docker Compose for seamless environment replication.
-- **Deployment:** Designed for single-command `docker-compose up` execution.
+---
 
-## 🚀 Quick Start
+## 🚀 Deployment & Orchestration
 
 ### Prerequisites
-- [Docker](https://www.docker.com/)
-- [Docker Compose](https://docs.docker.com/compose/)
+- [Docker](https://www.docker.com/) & [Docker Compose](https://docs.docker.com/compose/)
+- A running instance of **PostgreSQL**, **NATS**, and **Redis** (or use the provided `docker-compose.yml`).
 
-### Deployment
+### One-Command Launch
 ```bash
-# Clone the repository
+# Clone the elite codebase
 git clone https://github.com/jarvis203131/universal-backend.git
 cd universal-backend
 
-# Launch the entire platform
+# Launch the entire ecosystem
 docker-compose up -d
 ```
 
-## 🔌 API Reference
+---
 
-All requests must include a valid JWT in the `Authorization` header.
+## 🔌 Comprehensive API Reference
 
-### 1. Dynamic CRUD (REST)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/v1/:table` | List records with optional filters, sorting, and pagination |
-| `POST` | `/api/v1/:table` | Create a new record |
-| `PATCH` | `/api/v1/:table/:id` | Update an existing record |
-| `DELETE` | `/api/v1/:table/:id` | Remove a record |
-
-**Query Parameters:**
-- **Filters:** Use `column=op.value` (e.g., `?age=gte.21`). Operators: `eq`, `neq`, `gte`, `lte`, `gt`, `lt`.
-- **Sorting:** Use `?sort=column.direction` (e.g., `?sort=created_at.desc`).
-- **Pagination:** Use `?limit=X&offset=Y`.
+### 1. Dynamic Database (REST)
+**Base Path:** `/api/v1/:table`
+- `GET`: List records. Filters: `?column=op.value` (Ops: `eq`, `neq`, `gte`, `lte`, `gt`, `lt`).
+- `POST`: Create record.
+- `PATCH /:id`: Update record.
+- `DELETE /:id`: Remove record.
 
 ### 2. Realtime Engine (WebSockets)
 **Endpoint:** `GET /realtime`
-
-**Client Protocol:**
-Send JSON frames to manage subscriptions:
+**Protocol:** JSON-based subscription frames.
 ```json
-{
-  "action": "subscribe",
-  "channel": "chats:room_1"
-}
+{ "action": "subscribe", "channel": "global_chat" }
 ```
 
 ### 3. Storage Engine (REST)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/storage/upload/:bucket` | Upload a file to a specific bucket |
-| `POST` | `/storage/sign/:bucket` | Generate a pre-signed URL for a specific file path |
+- `POST /storage/upload/:bucket`: Multipart streaming upload.
+- `POST /storage/sign/:bucket`: Generate 15-minute pre-signed URLs.
 
-### 4. Unified SDK (JS/TS)
-**Installation:** `npm install @universal/sdk`
+### 4. Game Systems (REST)
+- `POST /game/matchmaking/join`: Enter rank-based queue.
+- `GET /game/inventory`: Retrieve secure, project-isolated item sets.
 
-**Example Usage:**
+### 5. Unified SDK (JS/TS)
 ```typescript
 import { UniversalClient } from '@universal/sdk';
-
 const client = new UniversalClient('https://api.platform.com', 'your-project-id');
 
-// Auth
-await client.auth.login('email@example.com', 'password');
-
-// Dynamic Database Query
-const users = await client.db.from('users').select().eq('status', 'active').limit(10);
-
-// Realtime Subscription
-client.realtime.channel('notifications').subscribe((data) => {
-  console.log('New event:', data);
-});
-
-// Storage
-await client.storage.bucket('uploads').upload(file);
+// Example: Atomic Database Query
+const activeUsers = await client.db.from('users').select().eq('status', 'active');
 ```
 
-## 🛡️ Security: Absolute Isolation
-The platform enforces strict tenant isolation at the infrastructure level:
-- **Database RLS:** Every query is unconditionally injected with `WHERE project_id = {jwt.project_id}`.
-- **Realtime Isolation:** NATS subjects are formatted as `projects.<project_id>.channels.<channel>`, ensuring clients can only stream data belonging to their own project.
-- **Storage Isolation:** All objects are stored with the prefix `projects/<project_id>/<bucket>/<path>`, preventing cross-tenant access.
-- **Event Isolation:** Internal events are routed via `projects.<project_id>.events.<type>`, ensuring strict multi-tenant event boundaries.
-- **Runtime Isolation**: Serverless functions are executed in fresh, isolated Rhai contexts with strict execution timeouts.
+---
 
-## 🛠️ Technical Stack
-| Component | Technology |
-|-----------|------------|
-| **Language** | Rust |
-| **Database** | PostgreSQL |
-| **Auth** | JWT / RBAC |
-| **Query Builder** | Sea-Query |
-| **Realtime/Events** | NATS JetStream |
-| **Storage** | AWS S3 SDK / MinIO |
-| **Serverless Runtime** | Rhai |
-| **Client SDK** | TypeScript |
-| **Runtime** | Docker |
-| **Orchestration** | Docker Compose |
+## 🛡️ Security: The "Absolute Isolation" Protocol
+
+The platform eliminates cross-tenant data leakage through three layers of defense:
+
+1.  **Data Layer (SQL)**: The `QueryEngine` unconditionally injects `WHERE project_id = {jwt.pid}` into every generated SQL statement.
+2.  **Transport Layer (NATS)**: Every subject is prefixed with the project ID: `projects.<project_id>.events.<type>`.
+3.  **Storage Layer (S3)**: Every object is keyed by project: `projects/<project_id>/<bucket>/<path>`.
 
 ---
-*Architected and maintained by JARVIS.*
+
+## 🛠️ Technical Stack
+- **Backend**: Rust (Tokio, Axum, SQLx, Sea-Query)
+- **Messaging**: NATS JetStream
+- **Caching/Queueing**: Redis
+- **Database**: PostgreSQL
+- **Storage**: MinIO / AWS S3
+- **Frontend**: Next.js 14, Tailwind CSS, shadcn/ui
+- **SDK**: TypeScript, Tsup
+
+---
+**Architected and Maintained by JARVIS.**
+*Precision is the standard. Excellence is the baseline.*
