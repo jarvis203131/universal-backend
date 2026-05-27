@@ -24,6 +24,7 @@ The Universal Backend is a high-performance, production-ready platform designed 
 - **Storage Engine:** An S3-compatible object storage abstraction with strict project-based partitioning.
 - **Event System:** A centralized, asynchronous event bus for internal system-wide communication.
 - **Function Engine:** A sandboxed, serverless runtime for executing tenant-specific logic triggered by events.
+- **Unified SDK:** A type-safe JavaScript/TypeScript client library encapsulating Auth, DB, Realtime, and Storage pipelines.
 - **Tenant Manager:** Dynamic provisioning and isolation of tenant data.
 - **API Gateway:** Unified entry point for web, mobile, and third-party integrations.
 
@@ -82,6 +83,30 @@ Send JSON frames to manage subscriptions:
 | `POST` | `/storage/upload/:bucket` | Upload a file to a specific bucket |
 | `POST` | `/storage/sign/:bucket` | Generate a pre-signed URL for a specific file path |
 
+### 4. Unified SDK (JS/TS)
+**Installation:** `npm install @universal/sdk`
+
+**Example Usage:**
+```typescript
+import { UniversalClient } from '@universal/sdk';
+
+const client = new UniversalClient('https://api.platform.com', 'your-project-id');
+
+// Auth
+await client.auth.login('email@example.com', 'password');
+
+// Dynamic Database Query
+const users = await client.db.from('users').select().eq('status', 'active').limit(10);
+
+// Realtime Subscription
+client.realtime.channel('notifications').subscribe((data) => {
+  console.log('New event:', data);
+});
+
+// Storage
+await client.storage.bucket('uploads').upload(file);
+```
+
 ## 🛡️ Security: Absolute Isolation
 The platform enforces strict tenant isolation at the infrastructure level:
 - **Database RLS:** Every query is unconditionally injected with `WHERE project_id = {jwt.project_id}`.
@@ -100,6 +125,7 @@ The platform enforces strict tenant isolation at the infrastructure level:
 | **Realtime/Events** | NATS JetStream |
 | **Storage** | AWS S3 SDK / MinIO |
 | **Serverless Runtime** | Rhai |
+| **Client SDK** | TypeScript |
 | **Runtime** | Docker |
 | **Orchestration** | Docker Compose |
 

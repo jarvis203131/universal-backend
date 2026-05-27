@@ -14,7 +14,6 @@ declare class UniversalClient {
     private http;
     private accessToken;
     private refreshToken;
-    constructor(config: SDKConfig);
     auth: {
         register: (email: string, password: string) => Promise<any>;
         login: (email: string, password: string) => Promise<any>;
@@ -29,6 +28,7 @@ declare class UniversalClient {
     storage: {
         bucket: (bucketName: string) => StorageBucket;
     };
+    constructor(config: SDKConfig);
     private setTokens;
 }
 declare class QueryBuilder {

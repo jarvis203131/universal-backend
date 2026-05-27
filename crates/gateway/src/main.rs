@@ -16,6 +16,7 @@ use auth::{TokenManager, AuthHasher};
 use sqlx::{PgPool, Row, Column, TypeInfo};
 use database::{QueryEngine, DynamicQuery};
 use realtime::RealtimeManager;
+use gaming::GamingService;
 use storage::{ObjectStorage, S3Storage};
 use anyhow;
 
@@ -26,6 +27,7 @@ pub struct AppState {
     pub realtime_manager: Arc<RealtimeManager>,
     pub storage: Arc<dyn ObjectStorage>,
     pub event_bus: SharedEventBus,
+    pub gaming: Arc<GamingService>,
 }
 
 #[derive(Deserialize)]
@@ -251,6 +253,48 @@ async fn storage_sign(
     Ok(Json(serde_json::json!({ "url": url })))
 }
 
+// --- Gaming Handlers ---
+
+#[derive(Deserialize)]
+pub struct MatchmakingRequest {
+    pub rank: f64,
+}
+
+async fn game_matchmaking_join(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(payload): Json<MatchmakingRequest>,
+) -> Result<impl IntoResponse, EngineError> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+
+    state.gaming.join_matchmaking(claims.pid, claims.sub, payload.rank).await?;
+
+    Ok(Json(serde_json::json!({ "status": "queued" })))
+}
+
+async fn game_inventory(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, EngineError> {
+    let auth_header = headers
+        .get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "))
+        .ok_or_else(|| EngineError::Authentication("Missing authorization header".to_string()))?;
+
+    let claims = state.token_manager.verify_token(auth_header, false)?;
+
+    let inventory = state.gaming.get_inventory(claims.pid, claims.sub).await?;
+
+    Ok(Json(inventory))
+}
+
 // --- Auth Handlers ---
 
 async fn register(
@@ -435,6 +479,19 @@ async fn main() {
             .expect("Failed to initialize Event Bus")
     );
 
+    let nats_client = Arc::new(
+        async_nats::connect("nats://localhost:4222")
+            .await
+            .expect("Failed to connect to NATS")
+    );
+
+    let gaming_service = Arc::new(GamingService::new(
+        "redis://localhost:6379".to_string(),
+        pool.clone(),
+        nats_client.clone(),
+    ));
+    gaming_service.spawn_matchmaker();
+
     let storage_manager = Arc::new(S3Storage::new("universal-backend-storage".to_string()).await);
 
     let state = Arc::new(AppState {
@@ -443,6 +500,7 @@ async fn main() {
         realtime_manager,
         storage: storage_manager,
         event_bus,
+        gaming: gaming_service,
     });
 
     let app = Router::new()
@@ -452,6 +510,9 @@ async fn main() {
         .route("/auth/login", post(login))
         .route("/auth/refresh", post(refresh))
         .route("/auth/me", get(me))
+        // Gaming Routes
+        .route("/game/matchmaking/join", post(game_matchmaking_join))
+        .route("/game/inventory", get(game_inventory))
         // Dynamic CRUD Routes
         .route("/api/v1/:table", get(generic_list).post(generic_create))
         .route("/api/v1/:table/:id", patch(generic_update).delete(generic_delete))
@@ -460,7 +521,7 @@ async fn main() {
         .route("/storage/sign/:bucket", post(storage_sign))
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.to_string()").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
     tracing::info!("Gateway listening on :8080");
     axum::serve(listener, app).await.unwrap();
 }

@@ -15,6 +15,9 @@ auth = { path = "../auth" }
 database = { path = "../database" }
 realtime = { path = "../realtime" }
 common = { path = "../common" }
+functions = { path = "../functions" }
+gaming = { path = "../gaming" }
+async-nats = { workspace = true }
 sqlx = { workspace = true }
 uuid = { workspace = true }
 tracing = { workspace = true }

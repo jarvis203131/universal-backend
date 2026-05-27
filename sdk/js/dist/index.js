@@ -39,7 +39,18 @@ var UniversalClient = class {
     this.config = config;
     this.accessToken = null;
     this.refreshToken = null;
-    // --- Auth Module ---
+    if (!config || typeof config !== "object" || !config.apiUrl) {
+      throw new Error("[SDK Error] Invalid configuration provided. UniversalClient requires an object with apiUrl and projectId.");
+    }
+    this.http = import_axios.default.create({
+      baseURL: config.apiUrl
+    });
+    this.http.interceptors.request.use((config2) => {
+      if (this.accessToken) {
+        config2.headers.Authorization = `Bearer ${this.accessToken}`;
+      }
+      return config2;
+    });
     this.auth = {
       register: async (email, password) => {
         const { data } = await this.http.post("/auth/register", {
@@ -64,27 +75,15 @@ var UniversalClient = class {
         this.refreshToken = null;
       }
     };
-    // --- Database Module (Fluent Query Builder) ---
     this.db = {
       from: (table) => new QueryBuilder(this.http, table, this.config.projectId)
     };
-    // --- Realtime Module ---
     this.realtime = {
       channel: (channelName) => new RealtimeChannel(this.config.apiUrl, this.accessToken || "", channelName)
     };
-    // --- Storage Module ---
     this.storage = {
       bucket: (bucketName) => new StorageBucket(this.http, bucketName, this.config.projectId)
     };
-    this.http = import_axios.default.create({
-      baseURL: config.apiUrl
-    });
-    this.http.interceptors.request.use((config2) => {
-      if (this.accessToken) {
-        config2.headers.Authorization = `Bearer ${this.accessToken}`;
-      }
-      return config2;
-    });
   }
   setTokens(data) {
     this.accessToken = data.access_token;
@@ -150,9 +149,18 @@ var RealtimeChannel = class {
     this.token = token;
     this.channel = channel;
     this.ws = null;
+    console.log(`[SDK Debug] RealtimeChannel init - url: ${url}, channel: ${channel}`);
   }
   subscribe(callback) {
+    if (!this.url) {
+      throw new Error("[SDK Error] RealtimeChannel url is undefined. Ensure UniversalClient is configured correctly.");
+    }
     const wsUrl = this.url.replace("http", "ws") + "/realtime";
+    console.log(`[SDK Debug] Connecting to: ${wsUrl}`);
+    if (typeof WebSocket === "undefined") {
+      console.warn("[SDK Warning] WebSocket not found in current environment. Realtime will not function in Node.js without a polyfill.");
+      return;
+    }
     this.ws = new WebSocket(wsUrl);
     this.ws.onopen = () => {
       this.ws?.send(JSON.stringify({

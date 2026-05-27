@@ -1,0 +1,19 @@
+[package]
+name = "gaming"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+common = { path = "../common" }
+engine = { path = "../engine" }
+tokio = { workspace = true }
+sqlx = { workspace = true }
+redis = { version = "0.25", features = ["tokio-comp", "cluster"] }
+async-nats = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+futures-util = { workspace = true }

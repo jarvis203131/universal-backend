@@ -16,7 +16,29 @@ export class UniversalClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
 
+  public auth: {
+    register: (email: string, password: string) => Promise<any>;
+    login: (email: string, password: string) => Promise<any>;
+    logout: () => void;
+  };
+
+  public db: {
+    from: (table: string) => QueryBuilder;
+  };
+
+  public realtime: {
+    channel: (channelName: string) => RealtimeChannel;
+  };
+
+  public storage: {
+    bucket: (bucketName: string) => StorageBucket;
+  };
+
   constructor(private config: SDKConfig) {
+    if (!config || typeof config !== 'object' || !config.apiUrl) {
+      throw new Error('[SDK Error] Invalid configuration provided. UniversalClient requires an object with apiUrl and projectId.');
+    }
+
     this.http = axios.create({
       baseURL: config.apiUrl,
     });
@@ -27,48 +49,45 @@ export class UniversalClient {
       }
       return config;
     });
+
+    // Initialize Modules
+    this.auth = {
+      register: async (email, password) => {
+        const { data } = await this.http.post('/auth/register', {
+          project_id: this.config.projectId,
+          email,
+          password,
+        });
+        this.setTokens(data);
+        return data;
+      },
+      login: async (email, password) => {
+        const { data } = await this.http.post('/auth/login', {
+          project_id: this.config.projectId,
+          email,
+          password,
+        });
+        this.setTokens(data);
+        return data;
+      },
+      logout: () => {
+        this.accessToken = null;
+        this.refreshToken = null;
+      }
+    };
+
+    this.db = {
+      from: (table) => new QueryBuilder(this.http, table, this.config.projectId),
+    };
+
+    this.realtime = {
+      channel: (channelName) => new RealtimeChannel(this.config.apiUrl, this.accessToken || '', channelName),
+    };
+
+    this.storage = {
+      bucket: (bucketName) => new StorageBucket(this.http, bucketName, this.config.projectId),
+    };
   }
-
-  // --- Auth Module ---
-  public auth = {
-    register: async (email: string, password: string) => {
-      const { data } = await this.http.post('/auth/register', {
-        project_id: this.config.projectId,
-        email,
-        password,
-      });
-      this.setTokens(data);
-      return data;
-    },
-    login: async (email: string, password: string) => {
-      const { data } = await this.http.post('/auth/login', {
-        project_id: this.config.projectId,
-        email,
-        password,
-      });
-      this.setTokens(data);
-      return data;
-    },
-    logout: () => {
-      this.accessToken = null;
-      this.refreshToken = null;
-    }
-  };
-
-  // --- Database Module (Fluent Query Builder) ---
-  public db = {
-    from: (table: string) => new QueryBuilder(this.http, table, this.config.projectId),
-  };
-
-  // --- Realtime Module ---
-  public realtime = {
-    channel: (channelName: string) => new RealtimeChannel(this.config.apiUrl, this.accessToken || '', channelName),
-  };
-
-  // --- Storage Module ---
-  public storage = {
-    bucket: (bucketName: string) => new StorageBucket(this.http, bucketName, this.config.projectId),
-  };
 
   private setTokens(data: AuthResponse) {
     this.accessToken = data.access_token;
@@ -137,11 +156,24 @@ class QueryBuilder {
 class RealtimeChannel {
   private ws: WebSocket | null = null;
 
-  constructor(private url: string, private token: string, private channel: string) {}
+  constructor(private url: string, private token: string, private channel: string) {
+    console.log(`[SDK Debug] RealtimeChannel init - url: ${url}, channel: ${channel}`);
+  }
 
   subscribe(callback: (payload: any) => void) {
+    if (!this.url) {
+        throw new Error('[SDK Error] RealtimeChannel url is undefined. Ensure UniversalClient is configured correctly.');
+    }
     const wsUrl = this.url.replace('http', 'ws') + '/realtime';
+    console.log(`[SDK Debug] Connecting to: ${wsUrl}`);
+    
+    if (typeof WebSocket === 'undefined') {
+        console.warn('[SDK Warning] WebSocket not found in current environment. Realtime will not function in Node.js without a polyfill.');
+        return;
+    }
+
     this.ws = new WebSocket(wsUrl);
+// ...
 
     this.ws.onopen = () => {
       this.ws?.send(JSON.stringify({
