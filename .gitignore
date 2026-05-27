@@ -1,3 +1,4 @@
 /target
+/target_alt
 **/*.rs.bk
 Cargo.lock
