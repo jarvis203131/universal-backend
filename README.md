@@ -21,6 +21,7 @@ The Universal Backend is a high-performance, production-ready platform designed 
 - **Auth System:** User registration, secure login, and granular permission management.
 - **Dynamic Database Engine:** A metadata-driven query layer that exposes generic CRUD endpoints for any table at runtime.
 - **Realtime Engine:** An ultra-low latency WebSocket gateway powered by NATS JetStream for live event streaming.
+- **Storage Engine:** An S3-compatible object storage abstraction with strict project-based partitioning.
 - **Tenant Manager:** Dynamic provisioning and isolation of tenant data.
 - **API Gateway:** Unified entry point for web, mobile, and third-party integrations.
 
@@ -73,10 +74,17 @@ Send JSON frames to manage subscriptions:
 }
 ```
 
+### 3. Storage Engine (REST)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/storage/upload/:bucket` | Upload a file to a specific bucket |
+| `POST` | `/storage/sign/:bucket` | Generate a pre-signed URL for a specific file path |
+
 ## 🛡️ Security: Absolute Isolation
 The platform enforces strict tenant isolation at the infrastructure level:
 - **Database RLS:** Every query is unconditionally injected with `WHERE project_id = {jwt.project_id}`.
 - **Realtime Isolation:** NATS subjects are formatted as `projects.<project_id>.channels.<channel>`, ensuring clients can only stream data belonging to their own project.
+- **Storage Isolation:** All objects are stored with the prefix `projects/<project_id>/<bucket>/<path>`, preventing cross-tenant access.
 
 ## 🛠️ Technical Stack
 | Component | Technology |
@@ -86,6 +94,7 @@ The platform enforces strict tenant isolation at the infrastructure level:
 | **Auth** | JWT / RBAC |
 | **Query Builder** | Sea-Query |
 | **Realtime** | NATS JetStream / WebSockets |
+| **Storage** | AWS S3 SDK / MinIO |
 | **Runtime** | Docker |
 | **Orchestration** | Docker Compose |
 
