@@ -19,6 +19,7 @@ The Universal Backend is a high-performance, production-ready platform designed 
 
 ### 2. Key Modules
 - **Auth System:** User registration, secure login, and granular permission management.
+- **Dynamic Database Engine:** A metadata-driven query layer that exposes generic CRUD endpoints for any table at runtime.
 - **Tenant Manager:** Dynamic provisioning and isolation of tenant data.
 - **API Gateway:** Unified entry point for web, mobile, and third-party integrations.
 
@@ -42,12 +43,34 @@ cd universal-backend
 docker-compose up -d
 ```
 
+## 🔌 API Reference (Dynamic CRUD)
+
+The platform provides a generic API for data access. All requests must include a valid JWT in the `Authorization` header.
+
+### Endpoints
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/:table` | List records with optional filters, sorting, and pagination |
+| `POST` | `/api/v1/:table` | Create a new record |
+| `PATCH` | `/api/v1/:table/:id` | Update an existing record |
+| `DELETE` | `/api/v1/:table/:id` | Remove a record |
+
+### Query Parameters
+- **Filters:** Use `column=op.value` (e.g., `?age=gte.21`). Supported operators: `eq`, `neq`, `gte`, `lte`, `gt`, `lt`.
+- **Sorting:** Use `?sort=column.direction` (e.g., `?sort=created_at.desc`).
+- **Pagination:** Use `?limit=X&offset=Y`.
+
+### 🛡️ Security: Row-Level Security (RLS)
+The engine enforces absolute tenant isolation. The `project_id` is extracted from the JWT and injected into every query:
+`SELECT * FROM table WHERE project_id = {jwt.project_id} AND {filters}`
+
 ## 🛠️ Technical Stack
 | Component | Technology |
 |-----------|------------|
 | **Language** | Rust |
 | **Database** | PostgreSQL |
 | **Auth** | JWT / RBAC |
+| **Query Builder** | Sea-Query |
 | **Runtime** | Docker |
 | **Orchestration** | Docker Compose |
 
