@@ -9,6 +9,8 @@ tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 engine = { path = "../engine" }
+storage = { path = "../storage" }
+
 auth = { path = "../auth" }
 database = { path = "../database" }
 realtime = { path = "../realtime" }
